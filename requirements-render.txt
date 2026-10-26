@@ -1,0 +1,9 @@
+# Production dependencies for public deployments (Hugging Face Docker Space,
+# Render free fallback). Deliberately excludes local speech models (torch,
+# faster-whisper, piper, sounddevice) because production uses the browser for
+# STT/TTS.
+fastapi==0.146.0
+uvicorn[standard]==0.52.4
+aiohttp==3.14.5
+numpy==2.2.3
+pydantic==2.14.1
