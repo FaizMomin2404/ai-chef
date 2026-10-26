@@ -1,0 +1,2138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍳</text></svg>">
+<title>AI Chef — Voice Cooking Companion</title>
+<style>
+  :root {
+    --bg: #0f0a14;
+    --panel: rgba(22, 16, 28, 0.7);
+    --panel-2: rgba(28, 20, 38, 0.85);
+    --line: rgba(255, 255, 255, 0.08);
+    --text: #f5f1fa;
+    --muted: #a89db0;
+    --accent: #b388ff;        /* purple */
+    --accent-glow: rgba(179, 136, 255, 0.35);
+    --accent-2: #00d4ff;      /* cyan */
+    --accent-2-glow: rgba(0, 212, 255, 0.35);
+    --warm-gold: #f2c14e;     /* warm gold */
+    --warm-gold-glow: rgba(242, 193, 78, 0.35);
+    --green: #6fbf73;
+    --red: #e06c5b;
+    --radius: 16px;
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1400px 800px at 15% -10%, #2d1b4a 0%, transparent 55%),
+      radial-gradient(1000px 700px at 110% 110%, #0d2a3a 0%, transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  h1,h2,h3,h4 { margin: 0; }
+  a { color: var(--accent-2); }
+
+  /* ================================================================
+     AI ORB — animated state indicator
+     ================================================================ */
+  .orb-wrap {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .orb {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #e0d4ff, #7c4dff);
+    border: 2px solid var(--accent);
+    box-shadow:
+      0 0 30px var(--accent-glow),
+      0 0 60px rgba(124, 77, 255, 0.25),
+      inset 0 0 20px rgba(255,255,255,0.15);
+    z-index: 2;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+  }
+  .orb::before {
+    content: "";
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent, var(--accent-2), transparent, var(--warm-gold), transparent);
+    opacity: 0.55;
+    animation: orbSpin 4s linear infinite;
+    z-index: 1;
+  }
+  .orb-glow {
+    position: absolute;
+    inset: -25px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 0;
+  }
+
+  @keyframes orbSpin { to { transform: rotate(360deg); } }
+  @keyframes orbBreathe {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 30px var(--accent-glow), 0 0 60px rgba(124,77,255,0.25), inset 0 0 20px rgba(255,255,255,0.15); }
+    50% { transform: scale(1.05); box-shadow: 0 0 40px var(--accent-glow), 0 0 80px rgba(124,77,255,0.35), inset 0 0 20px rgba(255,255,255,0.15); }
+  }
+  @keyframes orbListening {
+    0%, 100% { transform: scale(1); border-color: var(--accent); }
+    50% { transform: scale(1.08); border-color: var(--accent-2); box-shadow: 0 0 40px var(--accent-2-glow), 0 0 80px rgba(0,212,255,0.3); }
+  }
+  @keyframes orbThinking {
+    0%, 100% { border-color: var(--warm-gold); box-shadow: 0 0 30px var(--warm-gold-glow); }
+    50% { border-color: #f2c14e; box-shadow: 0 0 45px var(--warm-gold-glow), 0 0 90px rgba(242,193,78,0.3); }
+  }
+  @keyframes orbSpeaking {
+    0%, 100% { transform: scale(1); border-color: var(--accent); box-shadow: 0 0 30px var(--accent-glow); }
+    50% { transform: scale(1.12); border-color: var(--accent-2); box-shadow: 0 0 50px var(--accent-2-glow); }
+  }
+  @keyframes orbInterrupted {
+    0%, 100% { border-color: var(--red); box-shadow: 0 0 30px rgba(224,108,91,0.35); }
+    50% { transform: scale(1.1); border-color: var(--red); box-shadow: 0 0 50px rgba(224,108,91,0.5); }
+  }
+  @keyframes orbPaused {
+    0%, 100% { border-color: var(--muted); box-shadow: 0 0 20px rgba(168,157,176,0.2); transform: scale(1); }
+    50% { border-color: var(--muted); box-shadow: 0 0 30px rgba(168,157,176,0.3); transform: scale(1.04); }
+  }
+  @keyframes orbError {
+    0%, 100% { border-color: var(--red); transform: scale(1); }
+    25%, 75% { transform: scale(1.05); border-color: var(--red); box-shadow: 0 0 40px rgba(224,108,91,0.4); }
+  }
+
+  .orb.idle .orb-glow { opacity: 0.4; }
+  .orb.idle .orb { animation: orbBreathe 4s ease-in-out infinite; border-color: var(--accent); }
+  .orb.listening .orb-glow { opacity: 0.7; transform: scale(1.3); }
+  .orb.listening .orb { animation: orbListening 2s ease-in-out infinite; border-color: var(--accent-2); }
+  .orb.thinking .orb-glow { opacity: 0.8; transform: scale(1.4); }
+  .orb.thinking .orb { animation: orbThinking 2.5s ease-in-out infinite; border-color: var(--warm-gold); }
+  .orb.speaking .orb-glow { opacity: 0.8; transform: scale(1.35); }
+  .orb.speaking .orb { animation: orbSpeaking 1.2s ease-in-out infinite; border-color: var(--accent-2); }
+  .orb.interrupted .orb-glow { opacity: 0.9; transform: scale(1.35); }
+  .orb.interrupted .orb { animation: orbInterrupted 0.8s ease-in-out infinite; border-color: var(--red); }
+  .orb.paused .orb-glow { opacity: 0.3; }
+  .orb.paused .orb { animation: orbPaused 3s ease-in-out infinite; border-color: var(--muted); }
+  .orb.error .orb-glow { opacity: 0.8; }
+  .orb.error .orb { animation: orbError 1s ease-in-out infinite; border-color: var(--red); }
+
+  /* Listening waveform bars */
+  .waveform {
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .orb.listening .waveform { opacity: 1; }
+  .waveform div {
+    width: 4px;
+    height: 20px;
+    background: var(--accent-2);
+    border-radius: 2px;
+    animation: wave 1.2s ease-in-out infinite;
+  }
+  .waveform div:nth-child(2) { animation-delay: 0.2s; height: 28px; background: var(--accent); }
+  .waveform div:nth-child(3) { animation-delay: 0.4s; height: 16px; background: var(--accent-2); }
+  .waveform div:nth-child(4) { animation-delay: 0.6s; height: 24px; background: var(--accent); }
+  .waveform div:nth-child(5) { animation-delay: 0.8s; height: 20px; background: var(--accent-2); }
+  @keyframes wave {
+    0%, 100% { transform: scaleY(1); opacity: 0.7; }
+    50% { transform: scaleY(2.2); opacity: 1; }
+  }
+
+  /* ================================================================
+     Layout
+     ================================================================ */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(15, 10, 20, 0.8);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--text);
+  }
+  .brand .logo { font-size: 26px; filter: drop-shadow(0 0 8px var(--accent-glow)); }
+  .tag {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent-2);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 999px;
+    padding: 2px 10px;
+    background: rgba(0, 212, 255, 0.08);
+  }
+  .tag.ok { color: var(--green); border-color: rgba(111,191,115,0.4); background: rgba(111,191,115,0.08); }
+  .tag.warn { color: var(--red); border-color: rgba(224,108,91,0.4); background: rgba(224,108,91,0.08); }
+  .conn {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .sep { color: rgba(255,255,255,0.15); }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 0 0 0 rgba(111,191,115,0.5);
+    transition: background 0.2s, box-shadow 0.3s;
+  }
+  .dot.online { background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .dot.offline { background: var(--red); box-shadow: 0 0 10px var(--red); }
+  .dot.speaking {
+    background: var(--accent-2);
+    animation: pulse 1.2s infinite;
+  }
+  .pill {
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    white-space: nowrap;
+    background: rgba(0,0,0,0.3);
+  }
+  .pill.on { color: var(--green); border-color: rgba(111,191,115,0.4); background: rgba(111,191,115,0.08); }
+  .pill.listening { color: var(--accent-2); border-color: rgba(0,212,255,0.4); background: rgba(0,212,255,0.08); }
+  .pill.speaking, .pill.warn { color: var(--warm-gold); border-color: rgba(242,193,78,0.4); background: rgba(242,193,78,0.08); }
+  .pill.off { color: var(--muted); }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(0,212,255,0.55); }
+    70% { box-shadow: 0 0 0 10px rgba(0,212,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,212,255,0); }
+  }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 18px;
+    padding: 22px 28px 28px;
+    max-width: 1500px;
+    width: 100%;
+    margin: 0 auto;
+    min-height: 0;
+  }
+
+  .left { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow-y: auto; padding-right: 6px; }
+  .right {
+    display: flex; flex-direction: column; gap: 14px;
+    min-height: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+  }
+
+  .card {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(8px);
+  }
+
+  h2 { margin: 0 0 6px; font-size: 26px; letter-spacing: 0.2px; }
+  h3 {
+    margin: 20px 0 10px;
+    font-size: 12px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .meta { color: var(--muted); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .bar {
+    height: 8px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 10px;
+    border: 1px solid var(--line);
+  }
+  .bar > div {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--warm-gold));
+    border-radius: 999px;
+    transition: width 0.5s ease;
+    box-shadow: 0 0 15px var(--accent-glow);
+  }
+
+  #ingredients { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  #ingredients li {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 11px;
+    font-size: 14px;
+    align-items: center;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  #ingredients li.prepared { background: rgba(111,191,115,0.1); border-color: rgba(111,191,115,0.3); }
+  #ingredients li.prepared .name { text-decoration: line-through; text-decoration-color: var(--green); opacity: 0.7; }
+  #ingredients .check { color: var(--green); margin-right: 6px; font-weight: 700; }
+  #ingredients .qty { color: var(--warm-gold); font-weight: 600; white-space: nowrap; font-size: 13px; }
+  .srctag {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 1px 8px;
+    color: var(--muted);
+    margin-left: 6px;
+  }
+  .srctag.fallback { color: var(--warm-gold); border-color: rgba(242,193,78,0.4); background: rgba(242,193,78,0.08); }
+
+  .now {
+    border: 1px solid var(--accent);
+    background: linear-gradient(180deg, rgba(58,42,21,0.6), rgba(42,32,22,0.7));
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin: 12px 0 4px;
+    box-shadow: 0 0 0 1px rgba(179,136,255,0.15);
+    position: relative;
+    overflow: hidden;
+  }
+  .now::before {
+    content: "";
+    position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+    background: var(--accent);
+  }
+  .nowhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .nowstep { color: var(--muted); font-size: 11px; letter-spacing: 0; text-transform: none; }
+  .nowtext {
+    font-size: 20px;
+    line-height: 1.5;
+    margin-top: 4px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .nowtask { margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+  .safety { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .safety h3 { margin-bottom: 8px; color: var(--red); }
+  .safety ul { margin: 0; padding-left: 20px; color: #d8b98a; font-size: 13px; line-height: 1.6; }
+  .safety li { margin-bottom: 4px; }
+
+  #steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  #steps li {
+    display: flex; gap: 14px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: rgba(255,255,255,0.03);
+    color: #cfc2b2;
+    font-size: 14px;
+    line-height: 1.5;
+    transition: all 0.25s ease;
+    position: relative;
+  }
+  #steps li .num {
+    flex: 0 0 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  #steps li.current {
+    background: linear-gradient(180deg, rgba(179,136,255,0.18), rgba(124,77,255,0.12));
+    border-color: var(--accent);
+    color: var(--text);
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+  #steps li.current .num { background: var(--accent); color: #0a0414; }
+  #steps li.done { opacity: 0.6; border-color: rgba(111,191,115,0.2); }
+  #steps li.done .num { background: var(--green); color: #0a0b08; }
+  #steps li.done .txt { text-decoration: line-through; text-decoration-color: var(--green); opacity: 0.7; }
+  #steps li.pending { opacity: 0.85; }
+
+  .timer-progress {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 4px; background: rgba(255,255,255,0.08);
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
+  }
+  .timer-fill {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, var(--accent-2), var(--warm-gold));
+    border-radius: 0 0 8px 8px;
+    transform-origin: left;
+    transition: transform 0.5s ease;
+  }
+
+  .empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; gap: 14px;
+    padding: 60px 28px;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    color: var(--muted);
+    background: rgba(255,255,255,0.02);
+  }
+  .empty .big { font-size: 64px; filter: drop-shadow(0 0 20px rgba(179,136,255,0.2)); }
+  .empty strong { color: var(--text); font-size: 22px; }
+  .empty p { margin: 0; max-width: 520px; line-height: 1.7; font-size: 15px; }
+
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 10px 6px 12px;
+    min-height: 260px;
+    scroll-behavior: smooth;
+    background: rgba(0,0,0,0.15);
+    border-radius: 14px;
+    border: 1px solid var(--line);
+  }
+  .msg {
+    max-width: 90%;
+    padding: 12px 16px;
+    border-radius: 16px;
+    font-size: 14.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    animation: rise 0.2s ease-out;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .msg.chef {
+    align-self: flex-start;
+    background: linear-gradient(180deg, #231a2e, #1e1626);
+    border: 1px solid #3c2b4a;
+    border-bottom-left-radius: 5px;
+    color: #efe9ff;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: linear-gradient(180deg, #2e2020, #261c1c);
+    border: 1px solid #5a3a32;
+    border-bottom-right-radius: 5px;
+    color: #fdf3e0;
+  }
+  .msg.system {
+    align-self: center;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+    max-width: 100%;
+    padding: 4px 8px;
+    opacity: 0.7;
+  }
+  .msg .who {
+    display: block;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--accent);
+    margin-bottom: 3px;
+  }
+  .msg.user .who { color: var(--warm-gold); text-align: right; }
+
+  .suggest {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .suggest button {
+    text-align: left;
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14.5px;
+    transition: all 0.15s;
+  }
+  .suggest button:hover { border-color: var(--accent); background: rgba(179,136,255,0.1); transform: translateY(-1px); }
+  .suggest .sub { display: block; color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+  button.ctl {
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 11px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  button.ctl:hover:not(:disabled) { border-color: #6a4f22; background: rgba(255,255,255,0.1); transform: translateY(-1px); }
+  button.ctl:active:not(:disabled) { transform: translateY(1px); }
+  button.ctl:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ctl.primary {
+    background: linear-gradient(180deg, var(--warm-gold), #d99a2e);
+    color: #1a0d00;
+    border-color: #8a641a;
+  }
+  button.ctl.primary:hover:not(:disabled) { background: linear-gradient(180deg, #ffd87a, var(--warm-gold)); }
+  button.ctl.pause.active { border-color: var(--accent); color: var(--accent); }
+  button.mic { border-color: rgba(92,69,31,0.6); background: rgba(58,43,20,0.6); }
+  button.mic.live { background: rgba(74,31,26,0.65); border-color: var(--red); animation: micPulse 1.5s infinite; }
+  @keyframes micPulse {
+    0% { box-shadow: 0 0 0 0 rgba(224,108,91,0.45); }
+    70% { box-shadow: 0 0 0 9px rgba(224,108,91,0); }
+    100% { box-shadow: 0 0 0 0 rgba(224,108,91,0); }
+  }
+
+  .inputRow { display: flex; gap: 10px; margin-top: 12px; }
+  .inputRow input {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 11px;
+    padding: 12px 16px;
+    font-family: inherit;
+    font-size: 14.5px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .inputRow input:focus { border-color: var(--accent); }
+  .inputRow button {
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 14.5px;
+    padding: 0 20px;
+    border-radius: 11px;
+    border: 1px solid #6a4f22;
+    background: linear-gradient(180deg, var(--warm-gold), #d99a2e);
+    color: #1a0d00;
+    cursor: pointer;
+  }
+  .inputRow button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .hint { font-size: 12.5px; color: var(--muted); min-height: 18px; margin-top: 8px; }
+  .hint.warn { color: var(--warm-gold); }
+
+  .microw {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: var(--muted);
+    backdrop-filter: blur(6px);
+  }
+  .microw-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .microw select {
+    flex: 1; min-width: 160px; max-width: 320px;
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 12.5px;
+    outline: none;
+  }
+  .microw select:focus { border-color: var(--accent); }
+  .microw .mini {
+    font-family: inherit;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .microw .mini:hover:not(:disabled) { border-color: var(--accent); }
+  .microw .mini:disabled { opacity: 0.5; cursor: wait; }
+  .meter {
+    width: 80px; height: 10px; background: rgba(255,255,255,0.08);
+    border-radius: 999px; overflow: hidden; flex: 0 0 auto;
+    border: 1px solid var(--line);
+  }
+  #meterFill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--green), var(--accent), var(--red)); border-radius: 999px; transition: width 0.18s ease; }
+  .leveltext { font-size: 11px; min-width: 100px; font-variant-numeric: tabular-nums; font-family: "Courier New", monospace; }
+
+  .timers { display: flex; flex-direction: column; gap: 10px; }
+  .timer {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(74,58,34,0.5);
+    border-radius: 12px;
+    padding: 12px 16px;
+  }
+  .timer .time { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--warm-gold); font-size: 18px; }
+  .timer .lab { font-size: 13px; color: var(--muted); }
+  .timer.soon { border-color: rgba(224,108,91,0.5); }
+  .timer .timer-bar {
+    flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 999px; margin-left: 14px;
+    border: 1px solid var(--line); overflow: hidden;
+  }
+  .timer .timer-fill-bar {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, var(--accent-2), var(--warm-gold));
+    border-radius: 999px; transform-origin: left; transition: transform 0.5s ease;
+  }
+
+  .hidden { display: none !important; }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); background-clip: content-box; }
+
+  @media (max-width: 980px) {
+    main { grid-template-columns: 1fr; padding: 14px; }
+    .left { overflow: visible; padding-right: 0; }
+    .right { min-height: 75vh; }
+    header { padding: 14px 16px; flex-wrap: wrap; }
+    h2 { font-size: 22px; }
+    .orb-wrap { width: 120px; height: 120px; margin-bottom: 14px; }
+    .orb { width: 96px; height: 96px; font-size: 32px; }
+  }
+  @media (max-width: 560px) {
+    .conn { font-size: 11px; gap: 7px; }
+    .brand { font-size: 17px; }
+    .conn .sep { display: none; }
+    button.ctl { padding: 9px 12px; font-size: 12.5px; }
+    .microw { gap: 7px; }
+    .microw select { min-width: 130px; }
+    .leveltext { min-width: 84px; }
+    .empty { padding: 40px 20px; }
+    .empty .big { font-size: 48px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .orb, .orb::before { animation: none !important; }
+    .waveform { display: none !important; }
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="logo">🍳</span>
+    <span>AI Chef</span>
+    <span id="modeTag" class="tag">starting…</span>
+  </div>
+  <div class="conn">
+    <span id="dot" class="dot"></span>
+    <span id="connText">Connecting…</span>
+    <span class="sep">·</span>
+    <span id="aiDot" class="dot"></span>
+    <span id="aiText">AI …</span>
+    <span class="sep">·</span>
+    <span id="voiceDot" class="dot"></span>
+    <span id="voiceText">Voice …</span>
+  </div>
+</header>
+
+<main>
+  <section class="left">
+    <div id="empty" class="empty">
+      <div class="big">🥘</div>
+      <strong>What are we cooking today?</strong>
+      <p>Say or type something like <em>“I want to make chicken biryani for 2”</em>, or tell me the ingredients you already have.</p>
+    </div>
+
+    <div id="recipe" class="card hidden">
+      <h2 id="dishName">—</h2>
+      <div class="meta">
+        <span id="servingsText"></span>
+        <span id="totalTimeText"></span>
+        <span id="progressText">0% complete</span>
+        <span id="sourceTag" class="srctag"></span>
+      </div>
+      <div class="bar"><div id="progressBar"></div></div>
+
+      <div id="nowCard" class="now">
+        <div class="timer-progress"><div class="timer-fill" id="stepTimerFill"></div></div>
+        <div class="nowhead"><span id="nowStepLabel">Now</span><span id="nowStep" class="nowstep"></span></div>
+        <div id="nowTimer" class="timer-display" style="margin-top:6px; font-size:15px; color:var(--warm-gold); font-weight:700; font-variant-numeric:tabular-nums;"></div>
+        <div id="nowText" class="nowtext">—</div>
+        <div id="nowTask" class="nowtask"></div>
+      </div>
+
+      <h3>Ingredients</h3>
+      <ul id="ingredients"></ul>
+
+      <h3>Steps</h3>
+      <ol id="steps"></ol>
+
+      <div id="safetyBox" class="safety hidden">
+        <h3>⚠ Safety</h3>
+        <ul id="safetyList"></ul>
+      </div>
+    </div>
+
+    <div id="timersBox" class="card timers hidden">
+      <h3 style="margin:0 0 10px">Active Timers</h3>
+      <div id="timerList"></div>
+    </div>
+  </section>
+
+  <section class="right">
+    <!-- AI Orb -->
+    <div class="card" style="text-align:center;">
+      <div class="orb-wrap" id="orbWrap">
+        <div class="orb" id="orb" title="AI state"></div>
+        <div class="waveform" id="waveform">
+          <div></div><div></div><div></div><div></div><div></div>
+        </div>
+      </div>
+      <div id="orbStatus" style="font-size:13px; color:var(--muted); margin-bottom:10px;">Ready</div>
+    </div>
+
+    <div id="chat" class="chat" aria-live="polite"></div>
+
+    <div class="microw">
+      <label for="micSelect" class="microw-label">🎙 Mic</label>
+      <select id="micSelect" title="Microphone used by the offline recorder"></select>
+      <button id="micTestBtn" class="mini" type="button">Test level</button>
+      <button id="micRefreshBtn" class="mini" type="button" title="Rescan devices">↻</button>
+      <div class="meter"><div id="meterFill"></div></div>
+      <span id="micLevelText" class="leveltext">—</span>
+      <span id="micState" class="pill off">Hands-Free Off</span>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn" class="ctl primary hidden" title="Start the guided cooking steps">▶ Start cooking</button>
+      <button id="serverMicBtn" class="ctl mic" title="Record 6 seconds and transcribe locally with Whisper (works offline)">🎤 Talk 6s (offline)</button>
+      <button id="micBtn" class="ctl" title="Continuous speech recognition in the browser">🎧 Hands-free</button>
+      <button id="nextBtn" class="ctl">Next step</button>
+      <button id="repeatBtn" class="ctl">Repeat</button>
+      <button id="backBtn" class="ctl">Back</button>
+      <button id="doneBtn" class="ctl">Done</button>
+      <button id="pauseBtn" class="ctl pause" title="Pause the cooking session">Pause</button>
+      <button id="stopVoiceBtn" class="ctl" title="Stop the chef's speech immediately">⏹ Voice</button>
+      <button id="newBtn" class="ctl">New dish</button>
+      <button id="stopBtn" class="ctl">Stop</button>
+    </div>
+
+    <form id="inputForm" class="inputRow">
+      <input id="textInput" placeholder="Type a command…" autocomplete="off" spellcheck="false">
+      <button id="sendBtn" type="submit">Send</button>
+    </form>
+
+    <div id="hint" class="hint"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const chatEl = $("chat");
+  const dotEl = $("dot");
+  const connText = $("connText");
+  const hintEl = $("hint");
+  const micBtn = $("micBtn");
+  const serverMicBtn = $("serverMicBtn");
+  const micSelect = $("micSelect");
+  const micTestBtn = $("micTestBtn");
+  const micRefreshBtn = $("micRefreshBtn");
+  const meterFill = $("meterFill");
+  const micLevelText = $("micLevelText");
+  const textInput = $("textInput");
+  const modeTag = $("modeTag");
+  const aiDot = $("aiDot");
+  const aiText = $("aiText");
+  const voiceDot = $("voiceDot");
+  const voiceText = $("voiceText");
+  const micStateEl = $("micState");
+  const startBtn = $("startBtn");
+  const pauseBtn = $("pauseBtn");
+  const stopVoiceBtn = $("stopVoiceBtn");
+  const orbEl = $("orb");
+  const orbWrapEl = $("orbWrap");
+  const orbStatusEl = $("orbStatus");
+
+  // handsfree-state:start
+  let ws = null;
+  let reconnectTimer = null;
+  let busy = false;
+  let userWantsMic = false;
+  let recognition = null;
+  let recActive = false;
+  let restartTimer = null;
+  let lastStartAt = 0;
+  let restartDelay = 800;
+  let consecutiveFailures = 0;
+  let lastFinalText = "";
+  let lastFinalAt = 0;
+  let networkWarned = false;
+  let lastVoiceWarned = false;
+  let micBlocked = false;
+  // handsfree-state:end
+  let micPermission = "unknown";
+  let services = { llm: null, tts: null, stt: null, ttsMode: "server", sttMode: "server" };
+  let browserSpeakPending = 0;
+  let lastCurrent = -1;
+  let timerState = [];
+  let timerInterval = null;
+
+  // ---- Orb state machine ----
+  function setOrbState(stateName) {
+    orbWrapEl.className = "orb-wrap";
+    orbEl.className = "orb";
+    orbWrapEl.classList.add(stateName);
+    orbEl.classList.add(stateName);
+    const labels = {
+      idle: "Ready",
+      listening: "Listening…",
+      thinking: "Thinking…",
+      speaking: "Speaking…",
+      interrupted: "Interrupted — listening",
+      paused: "Paused",
+      error: "Error",
+    };
+    orbStatusEl.textContent = labels[stateName] || "Ready";
+    orbStatusEl.style.color = {
+      idle: "var(--muted)",
+      listening: "var(--accent-2)",
+      thinking: "var(--warm-gold)",
+      speaking: "var(--accent-2)",
+      interrupted: "var(--red)",
+      paused: "var(--muted)",
+      error: "var(--red)",
+    }[stateName] || "var(--muted)";
+  }
+
+  function emptyState() {
+    return {
+      dish: null, steps: [], current_step: 0, completed: [], pending: [],
+      ingredients: [], servings: 2, session_started: false, finished: false,
+      stopped: false, awaiting: "dish", paused: false, prepared: [], tasks: {},
+      safety: [], source: "ai", duration_minutes: 0,
+      total_time_minutes: 0, prep_time_minutes: 0, cook_time_minutes: 0,
+    };
+  }
+  let state = emptyState();
+
+  // ---------------------------------------------------------------
+  // Chat rendering
+  // ---------------------------------------------------------------
+  function addMessage(role, text, who) {
+    if (!text) return;
+    const div = document.createElement("div");
+    div.className = "msg " + role;
+    if (role !== "system" && who) {
+      const span = document.createElement("span");
+      span.className = "who";
+      span.textContent = who;
+      div.appendChild(span);
+    }
+    div.appendChild(document.createTextNode(text));
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function addSuggestions(items) {
+    if (!items || !items.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "msg chef";
+    wrap.style.maxWidth = "100%";
+    const list = document.createElement("div");
+    list.className = "suggest";
+    items.forEach((s) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      const title = document.createElement("span");
+      title.textContent = s.dish;
+      btn.appendChild(title);
+      const bits = [];
+      if (s.uses && s.uses.length) bits.push("uses: " + s.uses.join(", "));
+      if (s.missing && s.missing.length) bits.push("missing: " + s.missing.join(", "));
+      if (bits.length) {
+        const sub = document.createElement("span");
+        sub.className = "sub";
+        sub.textContent = bits.join(" · ");
+        btn.appendChild(sub);
+      }
+      btn.addEventListener("click", () => {
+        if (userWantsMic) stopListening();
+        sendCommand("make " + s.dish);
+      });
+      list.appendChild(btn);
+    });
+    wrap.appendChild(list);
+    chatEl.appendChild(wrap);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function hint(text, warn) {
+    hintEl.textContent = text || "";
+    hintEl.className = "hint" + (warn ? " warn" : "");
+  }
+
+  // ---------------------------------------------------------------
+  // Accurate status indicators
+  // ---------------------------------------------------------------
+  function setMicState(text, cls) {
+    micStateEl.textContent = text;
+    micStateEl.className = "pill " + (cls || "off");
+  }
+
+  function updateServices(msg) {
+    if (typeof msg.tts_mode === "string") services.ttsMode = msg.tts_mode;
+    if (typeof msg.stt_mode === "string") services.sttMode = msg.stt_mode;
+    const provider = (msg.llm_provider || "AI").toString();
+    if (typeof msg.llm === "boolean") {
+      services.llm = msg.llm;
+      aiDot.className = "dot " + (msg.llm ? "online" : "offline");
+      aiText.textContent = msg.llm ? "AI ready" : "AI offline";
+      aiDot.title = msg.llm
+        ? `The ${provider} language model is responding`
+        : `The ${provider} language model is not responding`;
+      modeTag.textContent = msg.llm ? "AI ready" : "AI offline";
+      modeTag.className = "tag " + (msg.llm ? "ok" : "warn");
+      modeTag.title = msg.llm
+        ? "Language model ready"
+        : "Built-in recipes still work while the AI is offline";
+    }
+    if (typeof msg.tts === "boolean") {
+      services.tts = msg.tts;
+      const browserVoice = services.ttsMode === "browser";
+      voiceDot.className = "dot " + (msg.tts ? "online" : "offline");
+      voiceText.textContent = msg.tts
+        ? (browserVoice ? "Voice ready (browser)" : "Voice ready")
+        : "Voice off";
+      voiceDot.title = msg.tts
+        ? (browserVoice
+            ? "Your browser will read the chef's replies aloud"
+            : "Server speech output is available")
+        : "Speech output is unavailable; replies are shown on screen";
+      if (!msg.tts && !lastVoiceWarned) {
+        lastVoiceWarned = true;
+        addMessage("system", "Voice output is unavailable. The chef's replies are shown on screen.");
+      }
+      updateControls();
+    }
+    if (typeof msg.stt === "boolean") {
+      services.stt = msg.stt;
+    }
+    if (services.sttMode === "browser" && serverMicBtn) {
+      serverMicBtn.disabled = true;
+      serverMicBtn.title = "Server microphone is not available in this deployment. Use Hands-free or type.";
+    }
+  }
+
+  function markBackend(online) {
+    dotEl.className = "dot " + (online ? "online" : "offline");
+    connText.textContent = online ? "Connected" : "Reconnecting…";
+    if (online) {
+      aiDot.className = "dot";
+      voiceDot.className = "dot";
+      aiText.textContent = "AI …";
+      voiceText.textContent = "Voice …";
+      modeTag.textContent = "starting…";
+      modeTag.className = "tag";
+      startBtn.classList.add("hidden");
+    } else {
+      aiDot.className = "dot offline";
+      voiceDot.className = "dot offline";
+      aiText.textContent = "AI unknown";
+      voiceText.textContent = "Voice unknown";
+      modeTag.textContent = "backend down";
+      modeTag.className = "tag warn";
+      startBtn.classList.add("hidden");
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Microphone picker + level meter
+  // ---------------------------------------------------------------
+  async function loadMics() {
+    try {
+      const res = await fetch("/api/mic/devices");
+      const data = await res.json();
+      if (!data.ok) return;
+      micSelect.innerHTML = "";
+      (data.devices || []).forEach((dev) => {
+        const opt = document.createElement("option");
+        opt.value = String(dev.index);
+        let label = (dev.name || "").replace(/\s+/g, " ").trim();
+        if (dev.is_default) label += " (default)";
+        if (dev.loopback) label += " — loopback";
+        opt.textContent = `[${dev.index}] ${label}`;
+        micSelect.appendChild(opt);
+      });
+      if (data.selected !== null && data.selected !== undefined) {
+        micSelect.value = String(data.selected);
+      }
+    } catch (e) {
+      // server not ready yet
+    }
+  }
+
+  function showLevel(peak) {
+    peak = Number(peak) || 0;
+    const pct = Math.round(Math.log10(Math.max(peak, 0.0001)) * 25 + 100);
+    meterFill.style.width = Math.max(2, Math.min(100, pct)) + "%";
+    micLevelText.textContent = "peak " + peak.toFixed(4);
+  }
+
+  async function testMicLevel() {
+    if (userWantsMic) stopListening();
+    micTestBtn.disabled = true;
+    micTestBtn.textContent = "Speak… 2s";
+    hint("Recording 2 seconds — say something now.", false);
+    try {
+      const res = await fetch("/api/mic/level?seconds=2");
+      const data = await res.json();
+      showLevel(data.peak);
+      const dev = data.device_name ? ` “${data.device_name}”` : "";
+      if (data.level === "good") {
+        hint(`Mic works${dev}. Peak ${Number(data.peak).toFixed(4)}.`, false);
+      } else if (data.level === "low") {
+        hint(`Very quiet${dev} (peak ${Number(data.peak).toFixed(4)}). Raise the Windows input volume or pick another mic.`, true);
+      } else {
+        hint(`No signal${dev} (peak ${Number(data.peak).toFixed(4)}). Try another mic in the list, or enable Windows microphone access.`, true);
+      }
+    } catch (e) {
+      hint("Mic test failed: " + e.message, true);
+    } finally {
+      micTestBtn.disabled = false;
+      micTestBtn.textContent = "Test level";
+    }
+  }
+
+  micTestBtn.addEventListener("click", testMicLevel);
+  micRefreshBtn.addEventListener("click", () => {
+    loadMics();
+    hint("Microphone list refreshed.", false);
+  });
+  micSelect.addEventListener("change", async () => {
+    try {
+      const res = await fetch("/api/mic/select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index: Number(micSelect.value) }),
+      });
+      const data = await res.json();
+      if (data.ok) hint("Microphone changed. Click “Test level” and speak.", false);
+      else hint("Could not change microphone: " + (data.error || "unknown error"), true);
+    } catch (e) {
+      hint("Could not change microphone: " + e.message, true);
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Recipe / status rendering
+  // ---------------------------------------------------------------
+  function baseName(name) {
+    return (name || "").toLowerCase().split(",")[0].trim();
+  }
+
+  function isPrepared(name) {
+    const b = baseName(name);
+    if (!b) return false;
+    return (state.prepared || []).some((p) => {
+      const q = baseName(p);
+      return q === b || q.includes(b) || b.includes(q);
+    });
+  }
+
+  function fmtDuration(sec) {
+    sec = Math.max(0, Math.round(sec || 0));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    if (m <= 0) return s + "s";
+    return m + "m" + (s ? " " + s + "s" : "");
+  }
+
+  function fmtClock(sec) {
+    sec = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + ":" + String(s).padStart(2, "0");
+  }
+
+  function applyStatus(msg) {
+    state = {
+      dish: msg.dish || null,
+      steps: msg.steps || [],
+      current_step: msg.current_step || 0,
+      completed: msg.completed || [],
+      pending: msg.pending || [],
+      ingredients: msg.ingredients || [],
+      servings: msg.servings || 2,
+      session_started: !!msg.session_started,
+      finished: !!msg.finished,
+      stopped: !!msg.stopped,
+      awaiting: msg.awaiting || "dish",
+      paused: !!msg.paused,
+      prepared: msg.prepared || [],
+      tasks: msg.tasks || {},
+      safety: msg.safety || [],
+      source: msg.recipe_source || "ai",
+      duration_minutes: msg.duration_minutes || 0,
+      total_time_minutes: msg.total_time_minutes || 0,
+      prep_time_minutes: msg.prep_time_minutes || 0,
+      cook_time_minutes: msg.cook_time_minutes || 0,
+    };
+    renderRecipe();
+    if (state.paused && !busy) setMicState("Session paused", "warn");
+    else if (!busy) setMicState(userWantsMic ? "Hands-Free On — Listening" : "Hands-Free Off",
+                                userWantsMic ? "listening" : "off");
+  }
+
+  function updateControls() {
+    const has = !!state.steps.length;
+    const confirming = has && state.awaiting === "confirm";
+    const cooking = has && state.session_started && !state.finished;
+    const active = cooking && !state.paused;
+
+    startBtn.classList.toggle("hidden", !confirming);
+    startBtn.disabled = !confirming;
+    $("nextBtn").disabled = !active;
+    $("backBtn").disabled = !active;
+    $("doneBtn").disabled = !active;
+    $("repeatBtn").disabled = !has || state.paused;
+    pauseBtn.disabled = !cooking;
+    pauseBtn.textContent = state.paused ? "Resume" : "Pause";
+    pauseBtn.classList.toggle("active", state.paused);
+    stopVoiceBtn.disabled = !busy;
+    stopVoiceBtn.title = busy ? "Stop the chef's speech now" : "The chef is not speaking";
+  }
+
+  function renderRecipe() {
+    const has = !!(state.dish && state.steps && state.steps.length);
+    $("empty").classList.toggle("hidden", has);
+    $("recipe").classList.toggle("hidden", !has);
+    updateControls();
+    if (!has) {
+      lastCurrent = -1;
+      return;
+    }
+
+    $("dishName").textContent = state.dish;
+    $("servingsText").textContent = state.servings + (state.servings === 1 ? " serving" : " servings");
+
+    // Total time summary
+    const tt = $("totalTimeText");
+    if (state.total_time_minutes) {
+      const parts = [];
+      if (state.prep_time_minutes) parts.push(`Prep ~${state.prep_time_minutes}m`);
+      if (state.cook_time_minutes) parts.push(`Cook ~${state.cook_time_minutes}m`);
+      if (state.total_time_minutes) parts.push(`Total ~${state.total_time_minutes}m`);
+      tt.textContent = parts.join(" · ");
+      tt.style.display = "inline";
+    } else {
+      tt.style.display = "none";
+    }
+
+    const doneCount = state.completed.length;
+    const pct = Math.round((doneCount / state.steps.length) * 100);
+    $("progressText").textContent = `${doneCount} of ${state.steps.length} steps · ${pct}%`;
+    $("progressBar").style.width = pct + "%";
+
+    const tag = $("sourceTag");
+    if (state.source === "fallback") {
+      tag.textContent = "built-in recipe";
+      tag.className = "srctag fallback";
+      tag.title = "A tested local recipe was used because the AI did not return a reliable one";
+    } else {
+      tag.textContent = "AI recipe";
+      tag.className = "srctag";
+      tag.title = "Recipe generated by the local AI and checked before display";
+    }
+
+    const ing = $("ingredients");
+    ing.innerHTML = "";
+    state.ingredients.forEach((i) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "name";
+      if (isPrepared(i.name)) {
+        li.classList.add("prepared");
+        const check = document.createElement("span");
+        check.className = "check";
+        check.textContent = "✓";
+        name.appendChild(check);
+      }
+      name.appendChild(document.createTextNode(i.name || ""));
+      const qty = document.createElement("span");
+      qty.className = "qty";
+      qty.textContent = i.quantity || "";
+      li.appendChild(name);
+      li.appendChild(qty);
+      ing.appendChild(li);
+    });
+
+    const ol = $("steps");
+    ol.innerHTML = "";
+    state.steps.forEach((text, idx) => {
+      const li = document.createElement("li");
+      const done = state.completed.includes(idx);
+      if (done) li.className = "done";
+      else if (idx === state.current_step && !state.finished) li.className = "current";
+      else li.className = "pending";
+      const num = document.createElement("span");
+      num.className = "num";
+      num.textContent = done ? "✓" : String(idx + 1);
+      const txt = document.createElement("span");
+      txt.className = "txt";
+      txt.textContent = text;
+      li.appendChild(num);
+      li.appendChild(txt);
+
+      // Per-step timer bar
+      const progWrap = document.createElement("div");
+      progWrap.className = "timer-progress";
+      const progFill = document.createElement("div");
+      progFill.className = "timer-fill";
+      progFill.id = `stepFill${idx}`;
+      progWrap.appendChild(progFill);
+      li.appendChild(progWrap);
+
+      // Fill timer if active for this step
+      const activeTimer = (timerState || []).find(t => t.label && t.label.includes(`step ${idx + 1}`));
+      if (activeTimer) {
+        const remainingPct = Math.max(0, Math.min(100, Math.round((activeTimer.remaining / activeTimer.total) * 100)));
+        progFill.style.transform = `scaleX(${remainingPct / 100})`;
+        progFill.style.transformOrigin = "left";
+      } else {
+        const fill = document.getElementById(`stepFill${idx}`);
+        if (fill) fill.style.transform = "scaleX(1)";
+      }
+
+      ol.appendChild(li);
+    });
+
+    // Current-action hero
+    const nowCard = $("nowCard");
+    nowCard.classList.remove("hidden");
+    const nowStep = $("nowStep");
+    const nowText = $("nowText");
+    const nowTask = $("nowTask");
+    const nowTimer = $("nowTimer");
+    const nowStepLabel = $("nowStepLabel");
+    if (state.awaiting === "confirm") {
+      nowStepLabel.textContent = "Ingredients";
+      nowStep.textContent = "Check ingredients";
+      nowText.textContent = "Check the ingredients, then press Start cooking.";
+      nowTask.textContent = state.source === "fallback"
+        ? "Built-in tested recipe"
+        : "AI-generated recipe, checked before display";
+      nowTimer.textContent = "";
+    } else if (state.stopped) {
+      nowStepLabel.textContent = "Stopped";
+      nowStep.textContent = "Session stopped";
+      nowText.textContent = "Session stopped before the dish was finished.";
+      nowTask.textContent = "Say “new dish” to cook something else.";
+      nowTimer.textContent = "";
+    } else if (state.finished || state.awaiting === "finished") {
+      nowStepLabel.textContent = "Complete";
+      nowStep.textContent = "Dish complete";
+      nowText.textContent = "Dish complete — turn off the heat and taste it.";
+      nowTask.textContent = "Say “new dish” to cook something else.";
+      nowTimer.textContent = "";
+    } else if (state.paused) {
+      nowStepLabel.textContent = "Paused";
+      nowStep.textContent = "Paused";
+      nowText.textContent = "Take your time. Press Resume when you are ready.";
+      nowTask.textContent = "";
+      nowTimer.textContent = "";
+    } else {
+      const idx = Math.min(state.current_step, state.steps.length - 1);
+      nowStepLabel.textContent = `Step ${idx + 1} of ${state.steps.length}`;
+      nowStep.textContent = "";
+      nowText.textContent = state.steps[idx];
+      const task = (state.tasks || {})[String(idx)];
+      let note = "";
+      if (task) {
+        if (task.status === "started") {
+          note = "Started " + fmtDuration(task.elapsed_seconds) + " ago · I'll check back";
+          if ((task.note || "").indexOf("not ready") !== -1) {
+            note = "Reported not ready · still waiting";
+          }
+        } else if (task.status === "done") {
+          note = "Task confirmed";
+        } else {
+          note = "Not confirmed yet";
+        }
+      }
+      nowTask.textContent = note;
+
+      // Step timer display
+      const activeTimer = (timerState || []).find(t => t.label && t.label.includes(`step ${idx + 1}`));
+      if (activeTimer && activeTimer.remaining > 0) {
+        nowTimer.textContent = `⏱ ${fmtClock(activeTimer.remaining)} remaining`;
+      } else {
+        nowTimer.textContent = "";
+      }
+    }
+
+    const safetyBox = $("safetyBox");
+    const safetyList = $("safetyList");
+    safetyList.innerHTML = "";
+    const notes = state.safety || [];
+    safetyBox.classList.toggle("hidden", notes.length === 0);
+    notes.forEach((note) => {
+      const li = document.createElement("li");
+      li.textContent = note;
+      safetyList.appendChild(li);
+    });
+
+    if (lastCurrent !== state.current_step) {
+      const current = ol.querySelector("li.current");
+      if (current) current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    lastCurrent = state.current_step;
+  }
+
+  function renderTimers(list) {
+    if (list) timerState = list.map((t) => ({ ...t }));
+    const box = $("timersBox");
+    const target = $("timerList");
+    box.classList.toggle("hidden", timerState.length === 0);
+    target.innerHTML = "";
+    timerState.forEach((t) => {
+      const row = document.createElement("div");
+      row.className = "timer" + (t.remaining <= 10 ? " soon" : "");
+      const lab = document.createElement("span");
+      lab.className = "lab";
+      lab.textContent = t.label || "Timer";
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = fmtTime(t.remaining);
+      row.appendChild(lab);
+      row.appendChild(time);
+      target.appendChild(row);
+
+      // Timer progress bar
+      const barWrap = document.createElement("div");
+      barWrap.className = "timer-bar";
+      const barFill = document.createElement("div");
+      barFill.className = "timer-fill-bar";
+      barFill.id = `timerFill${t.id}`;
+      const remainingPct = Math.max(0, Math.min(100, Math.round((t.remaining / Math.max(t.total, 1)) * 100)));
+      barFill.style.transform = `scaleX(${remainingPct / 100})`;
+      barWrap.appendChild(barFill);
+      row.appendChild(barWrap);
+    });
+  }
+
+  function fmtTime(sec) {
+    sec = Math.max(0, Math.ceil(sec));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + ":" + String(s).padStart(2, "0");
+  }
+
+  function startTimerTick() {
+    if (timerInterval) return;
+    timerInterval = setInterval(() => {
+      let changed = false;
+      timerState.forEach((t) => {
+        if (t.remaining > 0) { t.remaining = Math.max(0, t.remaining - 1); changed = true; }
+      });
+      if (changed) {
+        renderTimers();
+        renderRecipe(); // refresh step timer bars
+      }
+    }, 1000);
+  }
+  function stopTimerTick() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  // ---------------------------------------------------------------
+  // WebSocket
+  // ---------------------------------------------------------------
+  function connect() {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+    ws.onopen = () => {
+      markBackend(true);
+      hint("Ready. Type a command, or start hands-free listening.", false);
+      clearTimeout(reconnectTimer);
+      loadMics();
+      setTimeout(pollHealth, 600);
+      startTimerTick();
+    };
+
+    ws.onclose = () => {
+      markBackend(false);
+      hint("Connection lost. Reconnecting…", true);
+      stopListening();
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 1500);
+      stopTimerTick();
+      setOrbState("error");
+    };
+
+    ws.onerror = () => {
+      hint("Cannot reach the server. Is main.py running?", true);
+    };
+
+    ws.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+
+      switch (msg.type) {
+        case "welcome":
+          addMessage("chef", msg.text, "AI Chef");
+          setOrbState("idle");
+          break;
+
+        case "transcript":
+          addMessage(msg.speaker === "user" ? "user" : "chef",
+                     msg.text, msg.speaker === "user" ? "You" : "AI Chef");
+          break;
+
+        case "ai_speak":
+          addMessage("chef", msg.text, "AI Chef");
+          if (services.ttsMode === "browser" && msg.text) {
+            speakWithBrowser(msg.text);
+          } else if (services.ttsMode === "server") {
+            setOrbState("speaking");
+          }
+          break;
+
+        case "services":
+          updateServices(msg);
+          break;
+
+        case "speak_start":
+          busy = true;
+          voiceDot.className = "dot speaking";
+          voiceText.textContent = "Chef speaking…";
+          setOrbState("speaking");
+          if (!micBlocked) pauseForSpeech();
+          if (micBlocked) setMicState("Microphone Permission Required", "warn");
+          else if (userWantsMic) setMicState("Hands-Free On — AI Speaking", "speaking");
+          else setMicState("AI speaking", "speaking");
+          updateControls();
+          break;
+
+        case "speak_done":
+          busy = false;
+          voiceDot.className = "dot " + (services.tts ? "online" : "offline");
+          voiceText.textContent = services.tts ? "Voice ready" : "Voice off";
+          setOrbState(userWantsMic && !micBlocked ? "listening" : "idle");
+          if (micBlocked) {
+            setMicState("Microphone Permission Required", "warn");
+          } else if (userWantsMic) {
+            setMicState("Hands-Free On — Listening", "listening");
+            // Safety net for a long utterance: onend may have fired while the
+            // chef was still speaking, so make sure listening resumes. The
+            // scheduler is idempotent and will not create a duplicate instance.
+            scheduleRestart(250);
+          } else {
+            setMicState("Hands-Free Off", "off");
+          }
+          updateControls();
+          break;
+
+        case "status":
+          applyStatus(msg);
+          if (state.session_started && !state.paused && !state.finished) {
+            setOrbState("idle");
+          } else if (state.paused) {
+            setOrbState("paused");
+          }
+          break;
+
+        case "recipe":
+          state = {
+            ...emptyState(),
+            dish: msg.dish,
+            servings: msg.servings,
+            ingredients: msg.ingredients || [],
+            steps: msg.steps || [],
+            current_step: 0,
+            completed: [],
+            pending: (msg.steps || []).map((_, i) => i),
+            safety: msg.safety || [],
+            source: msg.source || "ai",
+            duration_minutes: msg.duration_minutes || 0,
+            total_time_minutes: msg.total_time_minutes || 0,
+            prep_time_minutes: msg.prep_time_minutes || 0,
+            cook_time_minutes: msg.cook_time_minutes || 0,
+            awaiting: "confirm",
+            session_started: false,
+            finished: false,
+            prepared: [],
+            tasks: {},
+          };
+          renderRecipe();
+          setOrbState("idle");
+          if (msg.source === "fallback") {
+            addMessage("system", "Using a built-in tested recipe because the AI output was unavailable or did not pass validation.");
+          }
+          break;
+
+        case "suggestions":
+          addSuggestions(msg.suggestions || []);
+          break;
+
+        case "timers":
+          renderTimers(msg.timers || []);
+          break;
+
+        case "timer_done":
+          addMessage("system", msg.text || "Timer finished.");
+          beep();
+          break;
+
+        case "voice_unavailable":
+          services.tts = false;
+          voiceDot.className = "dot offline";
+          voiceText.textContent = "Voice off";
+          if (!lastVoiceWarned) {
+            lastVoiceWarned = true;
+            addMessage("system", msg.text || "Voice output is unavailable.");
+            hint(msg.text || "Voice output is unavailable.", true);
+          }
+          updateControls();
+          break;
+
+        case "voice_error":
+          if (!lastVoiceWarned) {
+            lastVoiceWarned = true;
+            addMessage("system", msg.text || "Voice playback failed. The text is on screen.");
+            hint(msg.text || "Voice playback failed. The text is on screen.", true);
+          }
+          break;
+
+        case "voice_stopped":
+          hint("Speech stopped.", false);
+          setOrbState("interrupted");
+          setTimeout(() => setOrbState(userWantsMic && !micBlocked ? "listening" : "idle"), 1500);
+          break;
+
+        case "session_stopped":
+          stopListening();
+          state.session_started = false;
+          state.finished = true;
+          state.stopped = true;
+          state.awaiting = "stopped";
+          state.paused = false;
+          timerState = [];
+          renderTimers();
+          setMicState("Hands-Free Off", "off");
+          setOrbState("idle");
+          addMessage("system", "Session stopped. Timers cleared.");
+          hint("Session stopped. Use “New dish” to cook again.", false);
+          renderRecipe();
+          break;
+
+        case "session_reset":
+          stopListening();
+          state = emptyState();
+          timerState = [];
+          renderTimers();
+          lastCurrent = -1;
+          renderRecipe();
+          addMessage("system", "Fresh start.");
+          hint("Fresh start. What would you like to cook?", false);
+          setMicState("Hands-Free Off", "off");
+          setOrbState("idle");
+          break;
+
+        case "error":
+          addMessage("system", msg.text || "Something went wrong.");
+          hint(msg.text || "", true);
+          setOrbState("error");
+          if (!state.steps.length) {
+            startBtn.classList.add("hidden");
+          }
+          break;
+      }
+    };
+  }
+
+  function send(obj) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      hint("Not connected to the server yet.", true);
+      return false;
+    }
+    ws.send(JSON.stringify(obj));
+    return true;
+  }
+
+  // Browser speech output for hosted deployments (and browsers where the
+  // server has no speech engine). Uses the same busy/listening state machine.
+  function speakWithBrowser(text) {
+    if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      addMessage("system", "This browser cannot speak replies aloud. The text is shown above.");
+      if (userWantsMic) scheduleRestart(250);
+      return;
+    }
+    browserSpeakPending += 1;
+    busy = true;
+    voiceDot.className = "dot online";
+    voiceText.textContent = "Chef speaking\u2026";
+    updateControls();
+    pauseForSpeech();
+    setMicState(userWantsMic ? "Hands-Free On \u2014 AI Speaking" : "AI speaking", "speaking");
+    setOrbState("speaking");
+
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-US";
+    utter.rate = 1.0;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      browserSpeakPending = Math.max(0, browserSpeakPending - 1);
+      if (browserSpeakPending > 0) return;   // more queued replies
+      busy = false;
+      voiceDot.className = "dot " + (services.tts ? "online" : "offline");
+      voiceText.textContent = services.tts ? "Voice ready (browser)" : "Voice off";
+      updateControls();
+      if (micBlocked) {
+        setMicState("Microphone Permission Required", "warn");
+        setOrbState("idle");
+      } else if (userWantsMic) {
+        setMicState("Hands-Free On \u2014 Listening", "listening");
+        setOrbState("listening");
+        scheduleRestart(250);
+      } else {
+        setMicState("Hands-Free Off", "off");
+        setOrbState("idle");
+      }
+    };
+    utter.onend = finish;
+    utter.onerror = finish;
+    try {
+      window.speechSynthesis.speak(utter);
+    } catch (e) {
+      finish();
+    }
+  }
+
+  // The WebSocket loop can be busy awaiting TTS. Stop playback over HTTP so
+  // a typed command or button press can interrupt the chef immediately.
+  function interruptSpeech() {
+    if (services.ttsMode === "browser" && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+      browserSpeakPending = 0;
+      if (busy) {
+        busy = false;
+        updateControls();
+        if (userWantsMic && !micBlocked) scheduleRestart(250);
+      }
+    }
+    if (!busy) return Promise.resolve();
+    return fetch("/api/voice/stop", { method: "POST" }).catch(() => {});
+  }
+
+  async function sendCommand(text) {
+    text = (text || "").trim();
+    if (!text) return;
+    await interruptSpeech();
+    if (send({ type: "command", text })) {
+      textInput.value = "";
+      hint("");
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Browser speech recognition (continuous, with honest status)
+  // ---------------------------------------------------------------
+  // handsfree-logic:start
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const MAX_RESTART_DELAY = 6000;
+
+  // Exponential backoff for repeated recognition failures (capped).
+  function noteRecognitionFailure() {
+    consecutiveFailures = Math.min(consecutiveFailures + 1, 5);
+    restartDelay = Math.min(
+      800 * Math.pow(2, Math.max(0, consecutiveFailures - 1)),
+      MAX_RESTART_DELAY
+    );
+  }
+
+  // Single place that decides when to restart recognition. This prevents the
+  // overlapping/duplicate-instance race between onend, speak_done and timers.
+  function scheduleRestart(delay) {
+    if (!userWantsMic || micBlocked) return;
+    clearTimeout(restartTimer);
+    const wait = Math.max(200, Math.min(Number(delay) || 800, MAX_RESTART_DELAY));
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      if (!userWantsMic || micBlocked) return;
+      if (busy) {
+        // Keep Hands-Free enabled and retry once the chef stops speaking.
+        scheduleRestart(700);
+        return;
+      }
+      if (recActive) return;  // already listening - never create a duplicate
+      startRecognition();
+    }, wait);
+  }
+
+  function setupRecognition() {
+    if (!SpeechRecognition) {
+      micBtn.disabled = true;
+      micBtn.textContent = "🚫 Hands-free unavailable";
+      setMicState("Microphone Unavailable", "warn");
+      hint("This browser has no continuous speech recognition. Use “Talk 6s (offline)” or type.", true);
+      return;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      recActive = true;
+      micBlocked = false;
+      lastStartAt = Date.now();
+      micBtn.classList.add("live");
+      micBtn.textContent = "🎧 Listening…";
+      setMicState("Hands-Free On — Listening", "listening");
+      setOrbState("listening");
+      hint("Listening. Speak naturally. Say “next”, “repeat”, or ask a question.", false);
+    };
+
+    recognition.onresult = (event) => {
+      let finalText = "";
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const res = event.results[i];
+        if (res.isFinal) finalText += res[0].transcript;
+        else interim += res[0].transcript;
+      }
+      if (interim) hint("Hearing: " + interim.trim(), false);
+      if (finalText.trim()) {
+        const clean = finalText.trim();
+        // Recognition is demonstrably working - reset the backoff.
+        consecutiveFailures = 0;
+        restartDelay = 800;
+        // Guard against the browser delivering the same final result twice.
+        if (clean.toLowerCase() === lastFinalText.toLowerCase()
+            && Date.now() - lastFinalAt < 1500) {
+          return;
+        }
+        lastFinalText = clean;
+        lastFinalAt = Date.now();
+        hint("");
+        if (userWantsMic) setMicState("Hands-Free On — Processing", "thinking");
+        sendCommand(clean);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      recActive = false;
+      micBtn.classList.remove("live");
+      const err = event.error || "";
+
+      // Terminal errors: never auto-retry these.
+      if (err === "not-allowed" || err === "service-not-allowed") {
+        userWantsMic = false;
+        micBlocked = true;
+        clearTimeout(restartTimer);
+        restartTimer = null;
+        micBtn.textContent = "🚫 Microphone blocked";
+        setMicState("Microphone Permission Required", "warn");
+        hint("Microphone permission was denied. Allow mic access for this site, then click Hands-free again.", true);
+        setOrbState("error");
+        return;
+      }
+      if (err === "audio-capture") {
+        userWantsMic = false;
+        micBlocked = true;
+        clearTimeout(restartTimer);
+        restartTimer = null;
+        micBtn.textContent = "🚫 No microphone";
+        setMicState("Microphone Unavailable", "warn");
+        hint("No microphone is available. Plug one in, or type your commands.", true);
+        setOrbState("error");
+        return;
+      }
+      if (err === "language-not-supported") {
+        userWantsMic = false;
+        micBlocked = true;
+        clearTimeout(restartTimer);
+        restartTimer = null;
+        micBtn.textContent = "🚫 Hands-free unsupported";
+        setMicState("Microphone Unavailable", "warn");
+        setOrbState("error");
+        return;
+      }
+
+      // Recoverable: keep Hands-Free enabled; onend schedules the retry.
+      if (err === "network") {
+        noteRecognitionFailure();
+        setMicState("Hands-Free On — Reconnecting", "warn");
+        setOrbState("listening");
+        if (!networkWarned) {
+          networkWarned = true;
+          hint("Browser speech needs internet. Reconnecting automatically; use “Talk 6s (offline)” for local speech.", true);
+        }
+        return;
+      }
+      if (err === "no-speech" || err === "aborted") {
+        if (userWantsMic) {
+          setMicState(busy ? "Hands-Free On — AI Speaking" : "Hands-Free On — Reconnecting",
+                      busy ? "speaking" : "warn");
+          if (!busy) setOrbState("listening");
+        }
+        return;
+      }
+      noteRecognitionFailure();
+      if (userWantsMic) {
+        setMicState("Hands-Free On — Reconnecting", "warn");
+        setOrbState("listening");
+      }
+    };
+
+    recognition.onend = () => {
+      recActive = false;
+      micBtn.classList.remove("live");
+      if (micBlocked) {
+        // Keep the terminal label set by onerror (permission / unavailable).
+        setOrbState("error");
+        return;
+      }
+      if (!userWantsMic) {
+        micBtn.textContent = "🎧 Hands-free";
+        setMicState("Hands-Free Off", "off");
+        setOrbState("idle");
+        return;
+      }
+      if (busy) {
+        setMicState("Hands-Free On — AI Speaking", "speaking");
+        setOrbState("speaking");
+        scheduleRestart(1200);
+        return;
+      }
+      // A session that ends almost immediately is usually a browser cut-off.
+      if (lastStartAt && Date.now() - lastStartAt < 1200) noteRecognitionFailure();
+      setMicState("Hands-Free On — Reconnecting", "warn");
+      setOrbState("listening");
+      scheduleRestart(restartDelay);
+    };
+  }
+
+  function startRecognition() {
+    if (!recognition || micBlocked || !userWantsMic || recActive) return;
+    if (busy) {
+      // Do not listen while the chef is speaking; retry afterwards.
+      scheduleRestart(700);
+      return;
+    }
+    clearTimeout(restartTimer);
+    restartTimer = null;
+    try {
+      recognition.start();
+    } catch (e) {
+      if (e && e.name === "InvalidStateError") {
+        // Already starting/started - treat as active rather than duplicating.
+        recActive = true;
+        return;
+      }
+      if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) {
+        userWantsMic = false;
+        micBlocked = true;
+        micBtn.textContent = "🚫 Microphone blocked";
+        setMicState("Microphone Permission Required", "warn");
+        hint("Microphone permission was denied. Allow it in the browser, then click Hands-free again.", true);
+        setOrbState("error");
+        return;
+      }
+      noteRecognitionFailure();
+      setMicState("Hands-Free On — Reconnecting", "warn");
+      scheduleRestart(restartDelay);
+    }
+  }
+
+  function stopListening() {
+    userWantsMic = false;
+    micBlocked = false;
+    consecutiveFailures = 0;
+    restartDelay = 800;
+    clearTimeout(restartTimer);
+    restartTimer = null;
+    if (recognition && recActive) {
+      try {
+        if (recognition.abort) recognition.abort();
+        else recognition.stop();
+      } catch (e) {}
+    }
+    recActive = false;
+    micBtn.classList.remove("live");
+    micBtn.textContent = "🎧 Hands-free";
+    setMicState("Hands-Free Off", "off");
+    setOrbState("idle");
+  }
+
+  function pauseForSpeech() {
+    clearTimeout(restartTimer);
+    restartTimer = null;
+    if (recognition && recActive) {
+      try {
+        if (recognition.abort) recognition.abort();
+        else recognition.stop();
+      } catch (e) {}
+    }
+    recActive = false;
+    micBtn.classList.remove("live");
+    if (userWantsMic) micBtn.textContent = "🎧 Hands-free";
+    setOrbState("speaking");
+  }
+
+  setupRecognition();
+  // handsfree-logic:end
+
+  // ---------------------------------------------------------------
+  // Controls
+  // ---------------------------------------------------------------
+  micBtn.addEventListener("click", () => {
+    if (!recognition) {
+      hint("Use “Talk 6s (offline)” or type; this browser has no continuous speech recognition.", true);
+      return;
+    }
+    if (userWantsMic) {
+      stopListening();
+      hint("Microphone off.", false);
+    } else {
+      micBlocked = false;
+      userWantsMic = true;
+      consecutiveFailures = 0;
+      restartDelay = 800;
+      micBtn.textContent = "🎧 Starting…";
+      setMicState("Hands-Free On — Reconnecting", "warn");
+      startRecognition();
+    }
+  });
+
+  startBtn.addEventListener("click", () => {
+    startBtn.classList.add("hidden");
+    hint("Starting the guided cooking session…", false);
+    sendCommand("ready");
+  });
+
+  serverMicBtn.addEventListener("click", async () => {
+    if (busy) return;
+    if (userWantsMic) stopListening();
+    await new Promise((r) => setTimeout(r, 300));
+    serverMicBtn.disabled = true;
+    hint("Recording 6 seconds — speak now.", false);
+
+    let left = 6;
+    serverMicBtn.textContent = `🎤 Recording ${left}s…`;
+    setMicState("Recording (offline)…", "listening");
+    setOrbState("listening");
+    const tick = setInterval(() => {
+      left -= 1;
+      if (left > 0) serverMicBtn.textContent = `🎤 Recording ${left}s…`;
+    }, 1000);
+
+    try {
+      const res = await fetch("/api/listen?seconds=6", { method: "POST" });
+      const data = await res.json();
+      if (data.peak !== undefined) showLevel(data.peak);
+      if (data.text) {
+        sendCommand(data.text);
+      } else if (data.error) {
+        hint(data.error, true);
+      } else {
+        const dev = data.device_name ? ` from “${data.device_name}”` : "";
+        hint(
+          `No speech recognised${dev} (peak ${Number(data.peak || 0).toFixed(4)}). ` +
+          `Click “Test level” while speaking, and choose a mic whose bar moves.`,
+          true
+        );
+      }
+    } catch (e) {
+      hint("Offline mic request failed: " + e.message, true);
+    } finally {
+      clearInterval(tick);
+      serverMicBtn.disabled = false;
+      serverMicBtn.textContent = "🎤 Talk 6s (offline)";
+      setMicState(userWantsMic ? "Hands-Free On — Listening" : "Hands-Free Off",
+                  userWantsMic ? "listening" : "off");
+      setOrbState(userWantsMic && !busy ? "listening" : "idle");
+    }
+  });
+
+  $("nextBtn").addEventListener("click", () => sendCommand("next"));
+  $("repeatBtn").addEventListener("click", () => sendCommand("repeat"));
+  $("backBtn").addEventListener("click", () => sendCommand("previous"));
+  $("doneBtn").addEventListener("click", () => sendCommand("I'm done"));
+  $("newBtn").addEventListener("click", async () => {
+    stopListening();
+    await interruptSpeech();
+    send({ type: "new_session" });
+  });
+  $("stopBtn").addEventListener("click", async () => {
+    stopListening();
+    await interruptSpeech();
+    send({ type: "stop" });
+  });
+  pauseBtn.addEventListener("click", async () => {
+    await interruptSpeech();
+    send({ type: state.paused ? "resume" : "pause" });
+  });
+  stopVoiceBtn.addEventListener("click", async () => {
+    if (!busy) return;
+    stopVoiceBtn.disabled = true;
+    hint("Stopping speech…", false);
+    try {
+      await interruptSpeech();
+      if (services.ttsMode === "server") {
+        const res = await fetch("/api/voice/stop", { method: "POST" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+      }
+    } catch (e) {
+      hint("Could not stop speech: " + e.message, true);
+    } finally {
+      stopVoiceBtn.disabled = false;
+    }
+  });
+
+  $("inputForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    sendCommand(textInput.value);
+  });
+
+  // ---------------------------------------------------------------
+  // Service health polling
+  // ---------------------------------------------------------------
+  async function pollHealth() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    try {
+      const res = await fetch("/health", { cache: "no-store" });
+      const h = await res.json();
+      updateServices({
+        llm: !!h.llm_ready,
+        tts: !!h.tts_ready,
+        stt: !!h.stt_ready,
+        tts_mode: h.tts_mode,
+        stt_mode: h.stt_mode,
+        llm_provider: h.llm_provider,
+      });
+    } catch (e) { /* connection state already shows the problem */ }
+  }
+  setInterval(pollHealth, 20000);
+
+  // ---------------------------------------------------------------
+  // Beep for timer alerts
+  // ---------------------------------------------------------------
+  let audioCtx = null;
+  function beep() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const now = audioCtx.currentTime;
+      [0, 0.22, 0.44].forEach((offset) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.22, now + offset + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.16);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.18);
+      });
+    } catch (e) { /* audio optional */ }
+  }
+
+  // ---------------------------------------------------------------
+  // Boot
+  // ---------------------------------------------------------------
+  connect();
+  loadMics();
+  updateControls();
+  setOrbState("idle");
+
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: "microphone" }).then((p) => {
+      micPermission = p.state;
+      if (p.state === "denied") {
+        micBlocked = true;
+        micBtn.textContent = "🚫 Microphone blocked";
+        setMicState("Microphone Permission Required", "warn");
+        setOrbState("error");
+      }
+      p.onchange = () => {
+        micPermission = p.state;
+        if (p.state === "granted" && micBlocked && !userWantsMic) {
+          micBlocked = false;
+          micBtn.textContent = "🎧 Hands-free";
+          setMicState("Hands-Free Off", "off");
+          setOrbState("idle");
+        }
+      };
+    }).catch(() => {});
+  }
+
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then((stream) => stream.getTracks().forEach((t) => t.stop()))
+      .catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
